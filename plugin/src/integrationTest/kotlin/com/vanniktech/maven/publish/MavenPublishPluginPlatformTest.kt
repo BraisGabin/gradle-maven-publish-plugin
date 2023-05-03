@@ -6,9 +6,13 @@ import com.google.testing.junit.testparameterinjector.junit5.TestParameterInject
 import com.vanniktech.maven.publish.ProjectResultSubject.Companion.assertThat
 import com.vanniktech.maven.publish.TestOptions.Signing.IN_MEMORY_KEY
 import java.nio.file.Path
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.pathString
+import kotlin.io.path.walk
 import org.gradle.api.JavaVersion
 import org.junit.jupiter.api.io.TempDir
 
+@OptIn(ExperimentalPathApi::class)
 class MavenPublishPluginPlatformTest {
   @TempDir
   lateinit var testProjectDir: Path
@@ -303,6 +307,11 @@ class MavenPublishPluginPlatformTest {
   ) {
     val project = kotlinMultiplatformProjectSpec(kotlinVersion)
     val result = project.run(fixtures, testProjectDir, testOptions)
+
+    println("-----")
+    testProjectDir.resolve("project/build/signatures")
+      .walk()
+      .forEach { println(it.pathString) }
 
     assertThat(result).outcome().succeeded()
     assertThat(result).artifact("jar").exists()

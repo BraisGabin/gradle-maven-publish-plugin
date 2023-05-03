@@ -4,17 +4,31 @@ import com.vanniktech.maven.publish.sonatype.CloseAndReleaseSonatypeRepositoryTa
 import com.vanniktech.maven.publish.sonatype.CreateSonatypeRepositoryTask.Companion.registerCreateRepository
 import com.vanniktech.maven.publish.sonatype.DropSonatypeRepositoryTask.Companion.registerDropRepository
 import com.vanniktech.maven.publish.sonatype.SonatypeRepositoryBuildService.Companion.registerSonatypeRepositoryBuildService
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import org.gradle.api.Action
 import org.gradle.api.Incubating
 import org.gradle.api.Project
 import org.gradle.api.credentials.PasswordCredentials
+import org.gradle.api.file.Directory
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.publish.maven.MavenPom
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.tasks.AbstractPublishToMaven
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Nested
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.plugins.signing.Sign
 import org.gradle.plugins.signing.SigningPlugin
+import org.gradle.plugins.signing.signatory.Signatory
+import org.gradle.plugins.signing.type.AbstractSignatureType
+import org.gradle.plugins.signing.type.SignatureType
+import org.gradle.plugins.signing.type.pgp.ArmoredSignatureType
 import org.gradle.util.GradleVersion
 
 abstract class MavenPublishBaseExtension(
@@ -143,6 +157,36 @@ abstract class MavenPublishBaseExtension(
     // TODO: remove after https://youtrack.jetbrains.com/issue/KT-46466 is fixed
     project.tasks.withType(AbstractPublishToMaven::class.java).configureEach { publishTask ->
       publishTask.dependsOn(project.tasks.withType(Sign::class.java))
+    }
+
+    project.plugins.withId("org.jetbrains.kotlin.multiplatform") {
+      project.tasks.withType(Sign::class.java) {
+        it.signatureType = WorkaroundSignatureType(
+          it.signatureType ?: ArmoredSignatureType(),
+          project.layout.buildDirectory.dir("signatures/${it.name}"),
+        )
+      }
+    }
+  }
+
+  class WorkaroundSignatureType(
+    @Nested
+    val actual: SignatureType,
+    @Internal
+    val directory: Provider<Directory>,
+  ) : AbstractSignatureType() {
+
+    override fun fileFor(toSign: File): File {
+      return directory.get().file("${toSign.name}.$extension").asFile
+    }
+
+    override fun getExtension(): String {
+      return actual.extension
+    }
+
+    override fun sign(signatory: Signatory?, toSign: InputStream?, destination: OutputStream?) {
+      println("Sign 2: $toSign")
+      actual.sign(signatory, toSign, destination)
     }
   }
 
